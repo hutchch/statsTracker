@@ -84,6 +84,22 @@
             border-color: #3498db;
         }
 
+        .input-group select {
+            width: 100%;
+            padding: 8px;
+            background-color: #1a1a1a;
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #ffffff;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+
+        .input-group select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
         .launch-button {
             width: 100%;
             padding: 15px;
@@ -137,6 +153,15 @@
         <div class="input-group">
             <label for="wsPort">Port:</label>
             <input type="number" id="wsPort" value="23074" placeholder="23074">
+        </div>
+        <div class="input-group">
+            <label for="columns">Columns:</label>
+            <select id="columns">
+                <option value="1">1 Column</option>
+                <option value="2">2 Columns</option>
+                <option value="3">3 Columns</option>
+                <option value="4" selected>4 Columns</option>
+            </select>
         </div>
     </div>
 
@@ -199,6 +224,7 @@
             // Get WebSocket settings
             const host = document.getElementById('wsHost').value || 'localhost';
             const port = document.getElementById('wsPort').value || '23074';
+            const columns = document.getElementById('columns').value || '4';
 
             // Get selected stats
             const selectedStats = [];
@@ -219,6 +245,7 @@
             const params = new URLSearchParams();
             params.set('host', host);
             params.set('port', port);
+            params.set('columns', columns);
             params.set('stats', selectedStats.join(','));
 
             // Open tracker window

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stats Tracker</title>
+    <link rel="stylesheet" href="tracker.css">
+</head>
+<body>
+    <h1>Stats</h1>
+
+    <div class="counter-display" id="counter">
+        <span id="timerMain">00:00:00</span><span id="timerCentis">.00</span>
+    </div>
+
+    <div class="controls">
+        <button class="play-pause-btn" id="playPauseBtn" onclick="togglePlayPause()">▶</button>
+        <button class="reset-btn" id="resetBtn" onclick="resetTimer()">↻</button>
+    </div>
+
+    <div class="boxes-container" id="boxesContainer">
+        <!-- Boxes will be dynamically generated here -->
+    </div>
+
+    <div class="status" id="status">● Disconnected</div>
+
+    <script src="stats.js"></script>
+    <script>
+        let centiseconds = 0;
+        let intervalId = null;
+        let isRunning = false;
+        let timerControlActive = false;
+        let lastTimerValue = 0;
+        let qusb2snes = null;
+        let selectedStats = [];
+        let statLabels = {
+            checks: 'CHECKS',
+            bonks: 'BONKS',
+            revivals: 'REVIVALS',
+            deaths: 'DEATHS',
+            flutes: 'FLUTES',
+            saveandquit: 'SAVE AND QUIT',
+            dungeonmirrors: 'DUNGEON MIRRORS',
+            overworldmirrors: 'OVERWORLD MIRRORS'
+        };
+
+        const counterDisplay = document.getElementById('counter');
+        const timerMain = document.getElementById('timerMain');
+        const timerCentis = document.getElementById('timerCentis');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const statusDisplay = document.getElementById('status');
+        const resetBtn = document.getElementById('resetBtn');
+        const boxesContainer = document.getElementById('boxesContainer');
+
+        // Parse URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const host = urlParams.get('host') || 'localhost';
+        const port = urlParams.get('port') || '23074';
+        const columns = urlParams.get('columns') || '4';
+        const statsParam = urlParams.get('stats') || '';
+        selectedStats = statsParam.split(',').filter(s => s);
+
+        // Generate boxes
+        function generateBoxes() {
+            boxesContainer.innerHTML = '';
+            
+            // Set grid columns based on parameter
+            boxesContainer.className = 'boxes-container cols-' + columns;
+            
+            selectedStats.forEach(stat => {
+                const box = document.createElement('div');
+                box.className = 'box';
+                
+                const label = document.createElement('div');
+                label.className = 'box-label';
+                label.textContent = statLabels[stat] || stat.toUpperCase();
+                
+                const value = document.createElement('div');
+                value.className = 'box-value';
+                value.id = stat;
+                value.textContent = '0';
+                
+                box.appendChild(label);
+                box.appendChild(value);
+                boxesContainer.appendChild(box);
+            });
+        }
+
+        generateBoxes();
+
+        function formatTime(cs) {
+            const hours = Math.floor(cs / 360000);
+            const minutes = Math.floor((cs % 360000) / 6000);
+            const seconds = Math.floor((cs % 6000) / 100);
+            const centis = cs % 100;
+
+            return {
+                main: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`,
+                centis: `.${String(centis).padStart(2, '0')}`
+            };
+        }
+
+        function updateCounter() {
+            centiseconds++;
+            const time = formatTime(centiseconds);
+            timerMain.textContent = time.main;
+            timerCentis.textContent = time.centis;
+        }
+
+        function handleStatusChange(status) {
+            if (status === 'connected') {
+                statusDisplay.textContent = '● Connected to RetroArch';
+                statusDisplay.className = 'status connected';
+            } else if (status === 'connecting') {
+                statusDisplay.textContent = '● Connecting...';
+                statusDisplay.className = 'status';
+            } else if (status === 'no_device') {
+                statusDisplay.textContent = '● No Device Found';
+                statusDisplay.className = 'status disconnected';
+            } else if (status === 'error') {
+                statusDisplay.textContent = '● Connection Error';
+                statusDisplay.className = 'status disconnected';
+            } else {
+                statusDisplay.textContent = '● Disconnected';
+                statusDisplay.className = 'status disconnected';
+            }
+        }
+
+        function handleMemoryUpdate(key, value) {
+            // Handle gamemode for timer start/stop
+            if (key === 'gamemode') {
+                // Start timer when entering gameplay modes (DUNGEON, OVERWORLD, SPEC_OVERWORLD)
+                if ((value === 0x07 || value === 0x09 || value === 0x0B) && !isRunning) {
+                    startTimerAutomatically();
+                }
+                // Stop timer when reaching TRIFORCE_ROOM
+                else if (value === 0x19 && isRunning) {
+                    stopTimerAutomatically();
+                }
+            }
+            // Update stat boxes
+            else if (selectedStats.includes(key)) {
+                setBoxValue(key, value);
+            }
+        }
+
+        function setBoxValue(boxId, value) {
+            const box = document.getElementById(boxId);
+            if (box) {
+                box.textContent = value;
+            }
+        }
+
+        function startTimerAutomatically() {
+            if (!isRunning) {
+                isRunning = true;
+                intervalId = setInterval(updateCounter, 10);
+                
+                playPauseBtn.textContent = '⏸';
+                playPauseBtn.className = 'play-pause-btn paused';
+            }
+        }
+
+        function stopTimerAutomatically() {
+            if (isRunning) {
+                isRunning = false;
+                clearInterval(intervalId);
+                
+                playPauseBtn.textContent = '▶';
+                playPauseBtn.className = 'play-pause-btn';
+            }
+        }
+
+        function togglePlayPause() {
+            if (!timerControlActive) {
+                // Connection should already be active, just enable control
+                timerControlActive = true;
+            }
+            
+            // Toggle play/pause
+            if (isRunning) {
+                pauseCounter();
+            } else {
+                resumeCounter();
+            }
+        }
+
+        function startCounter() {
+            if (!timerControlActive) {
+                timerControlActive = true;
+                
+                // Create and start QUsb2Snes connection
+                qusb2snes = new QUsb2SnesConnection();
+                qusb2snes.setStatusCallback(handleStatusChange);
+                qusb2snes.setMemoryCallback(handleMemoryUpdate);
+                qusb2snes.setSelectedStats(selectedStats);
+                qusb2snes.setHost(host, port);
+                qusb2snes.startMonitoring();
+            }
+        }
+
+        function pauseCounter() {
+            if (isRunning) {
+                isRunning = false;
+                clearInterval(intervalId);
+                
+                playPauseBtn.textContent = '▶';
+                playPauseBtn.className = 'play-pause-btn';
+            }
+        }
+
+        function resumeCounter() {
+            if (!isRunning) {
+                isRunning = true;
+                intervalId = setInterval(updateCounter, 10);
+                
+                playPauseBtn.textContent = '⏸';
+                playPauseBtn.className = 'play-pause-btn paused';
+            }
+        }
+
+        function stopCounter() {
+            isRunning = false;
+            timerControlActive = false;
+            clearInterval(intervalId);
+            
+            if (qusb2snes) {
+                qusb2snes.stopMonitoring();
+                qusb2snes = null;
+            }
+            
+            centiseconds = 0;
+            lastTimerValue = 0;
+            const time = formatTime(centiseconds);
+            timerMain.textContent = time.main;
+            timerCentis.textContent = time.centis;
+            
+            // Reset all boxes
+            selectedStats.forEach(stat => {
+                document.getElementById(stat).textContent = '0';
+            });
+            
+            playPauseBtn.textContent = '▶';
+            playPauseBtn.className = 'play-pause-btn';
+        }
+
+        function resetTimer() {
+            // Stop the timer if running
+            if (isRunning) {
+                isRunning = false;
+                clearInterval(intervalId);
+            }
+            
+            // Reset the timer to zero
+            centiseconds = 0;
+            const time = formatTime(centiseconds);
+            timerMain.textContent = time.main;
+            timerCentis.textContent = time.centis;
+            
+            // Update button states
+            playPauseBtn.textContent = '▶';
+            playPauseBtn.className = 'play-pause-btn';
+        }
+
+        // Automatically connect to WebSocket when page loads
+        window.addEventListener('load', function() {
+            startCounter();
+        });
+    </script>
+</body>
+</html>
