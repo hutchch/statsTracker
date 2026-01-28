@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stats Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            width: 400px;
+            height: 400px;
+            margin: 0;
+            padding: 15px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            overflow: auto;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            text-align: center;
+            color: #ffffff;
+            font-size: 20px;
+            margin: 0 0 15px 0;
+        }
+
+        .status {
+            text-align: center;
+            font-size: 11px;
+            margin-bottom: 10px;
+            color: #999999;
+        }
+
+        .status.connected {
+            color: #27ae60;
+        }
+
+        .status.disconnected {
+            color: #e74c3c;
+        }
+
+        .counter-display {
+            text-align: center;
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0;
+            padding: 10px;
+            color: #3498db;
+        }
+
+        #timerCentis {
+            font-size: 20px;
+        }
+
+        .controls {
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        button {
+            font-size: 18px;
+            padding: 8px;
+            margin: 0 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-weight: bold;
+            width: 40px;
+            height: 40px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .play-pause-btn {
+            background-color: #27ae60;
+            color: white;
+        }
+
+        .play-pause-btn:hover {
+            background-color: #229954;
+        }
+
+        .play-pause-btn.paused {
+            background-color: #f39c12;
+        }
+
+        .play-pause-btn.paused:hover {
+            background-color: #d68910;
+        }
+
+        .stop-btn {
+            background-color: #e74c3c;
+            color: white;
+        }
+
+        .stop-btn:hover {
+            background-color: #c0392b;
+        }
+
+        .reset-btn {
+            background-color: #95a5a6;
+            color: white;
+        }
+
+        .reset-btn:hover {
+            background-color: #7f8c8d;
+        }
+
+        .boxes-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+
+        .boxes-container.cols-3 {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .boxes-container.cols-2 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .boxes-container.cols-1 {
+            grid-template-columns: repeat(1, 1fr);
+        }
+
+        .box {
+            background-color: #2a2a2a;
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.6);
+            transition: transform 0.2s;
+        }
+
+        .box:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.7);
+        }
+
+        .box-label {
+            font-size: 10px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #cccccc;
+        }
+
+        .box-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #3498db;
+        }
+
+        .box:nth-child(4n+1) .box-value {
+            color: #27ae60;
+        }
+
+        .box:nth-child(4n+2) .box-value {
+            color: #e67e22;
+        }
+
+        .box:nth-child(4n+3) .box-value {
+            color: #9b59b6;
+        }
+
+        .box:nth-child(4n+4) .box-value {
+            color: #e74c3c;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>Stats</h1>
+
+    <div class="counter-display" id="counter">
+        <span id="timerMain">00:00:00</span><span id="timerCentis">.00</span>
+    </div>
+
+    <div class="controls">
+        <button class="play-pause-btn" id="playPauseBtn" onclick="togglePlayPause()">▶</button>
+        <button class="reset-btn" id="resetBtn" onclick="resetTimer()">↻</button>
+    </div>
+
+    <div class="boxes-container" id="boxesContainer">
+        <!-- Boxes will be dynamically generated here -->
+    </div>
+
+    <div class="status" id="status">● Disconnected</div>
+
+    <script src="stats.js"></script>
+    <script>
+        let centiseconds = 0;
+        let intervalId = null;
+        let isRunning = false;
+        let timerControlActive = false;
+        let lastTimerValue = 0;
+        let qusb2snes = null;
+        let selectedStats = [];
+        let statLabels = {
+            checks: 'CHECKS',
+            bonks: 'BONKS',
+            revivals: 'REVIVALS',
+            deaths: 'DEATHS',
+            flutes: 'FLUTES',
+            saveandquit: 'SAVE AND QUIT',
+            dungeonmirrors: 'DUNGEON MIRRORS',
+            overworldmirrors: 'OVERWORLD MIRRORS'
+        };
+
+        const counterDisplay = document.getElementById('counter');
+        const timerMain = document.getElementById('timerMain');
+        const timerCentis = document.getElementById('timerCentis');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const statusDisplay = document.getElementById('status');
+        const resetBtn = document.getElementById('resetBtn');
+        const boxesContainer = document.getElementById('boxesContainer');
+
+        // Parse URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const host = urlParams.get('host') || 'localhost';
+        const port = urlParams.get('port') || '23074';
+        const statsParam = urlParams.get('stats') || '';
+        selectedStats = statsParam.split(',').filter(s => s);
+
+        // Generate boxes
+        function generateBoxes() {
+            boxesContainer.innerHTML = '';
+            
+            // Determine grid columns based on number of boxes
+            const numBoxes = selectedStats.length;
+            if (numBoxes <= 4) {
+                boxesContainer.className = 'boxes-container cols-' + numBoxes;
+            } else {
+                boxesContainer.className = 'boxes-container';
+            }
+            
+            selectedStats.forEach(stat => {
+                const box = document.createElement('div');
+                box.className = 'box';
+                
+                const label = document.createElement('div');
+                label.className = 'box-label';
+                label.textContent = statLabels[stat] || stat.toUpperCase();
+                
+                const value = document.createElement('div');
+                value.className = 'box-value';
+                value.id = stat;
+                value.textContent = '0';
+                
+                box.appendChild(label);
+                box.appendChild(value);
+                boxesContainer.appendChild(box);
+            });
+        }
+
+        generateBoxes();
+
+        function formatTime(cs) {
+            const hours = Math.floor(cs / 360000);
+            const minutes = Math.floor((cs % 360000) / 6000);
+            const seconds = Math.floor((cs % 6000) / 100);
+            const centis = cs % 100;
+
+            return {
+                main: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`,
+                centis: `.${String(centis).padStart(2, '0')}`
+            };
+        }
+
+        function updateCounter() {
+            centiseconds++;
+            const time = formatTime(centiseconds);
+            timerMain.textContent = time.main;
+            timerCentis.textContent = time.centis;
+        }
+
+        function handleStatusChange(status) {
+            if (status === 'connected') {
+                statusDisplay.textContent = '● Connected to RetroArch';
+                statusDisplay.className = 'status connected';
+            } else if (status === 'connecting') {
+                statusDisplay.textContent = '● Connecting...';
+                statusDisplay.className = 'status';
+            } else if (status === 'no_device') {
+                statusDisplay.textContent = '● No Device Found';
+                statusDisplay.className = 'status disconnected';
+            } else if (status === 'error') {
+                statusDisplay.textContent = '● Connection Error';
+                statusDisplay.className = 'status disconnected';
+            } else {
+                statusDisplay.textContent = '● Disconnected';
+                statusDisplay.className = 'status disconnected';
+            }
+        }
+
+        function handleMemoryUpdate(key, value) {
+            // Handle gamemode for timer start at SELECT_SPAWN
+            if (key === 'gamemode') {
+                // Start timer when SELECT_SPAWN (0x1B) is reached
+                if (value === 0x1B && !isRunning) {
+                    startTimerAutomatically();
+                }
+            }
+            // Handle triforce room (stop condition)
+            else if (key === 'triforce') {
+                if (value === 0x19 && isRunning) {
+                    stopTimerAutomatically();
+                }
+            }
+            // Update stat boxes
+            else if (selectedStats.includes(key)) {
+                setBoxValue(key, value);
+            }
+        }
+
+        function setBoxValue(boxId, value) {
+            const box = document.getElementById(boxId);
+            if (box) {
+                box.textContent = value;
+            }
+        }
+
+        function startTimerAutomatically() {
+            if (!isRunning) {
+                isRunning = true;
+                intervalId = setInterval(updateCounter, 10);
+                
+                playPauseBtn.textContent = '⏸';
+                playPauseBtn.className = 'play-pause-btn paused';
+            }
+        }
+
+        function stopTimerAutomatically() {
+            if (isRunning) {
+                isRunning = false;
+                clearInterval(intervalId);
+                
+                playPauseBtn.textContent = '▶';
+                playPauseBtn.className = 'play-pause-btn';
+            }
+        }
+
+        function togglePlayPause() {
+            if (!timerControlActive) {
+                // Connection should already be active, just enable control
+                timerControlActive = true;
+            }
+            
+            // Toggle play/pause
+            if (isRunning) {
+                pauseCounter();
+            } else {
+                resumeCounter();
+            }
+        }
+
+        function startCounter() {
+            if (!timerControlActive) {
+                timerControlActive = true;
+                
+                // Create and start QUsb2Snes connection
+                qusb2snes = new QUsb2SnesConnection();
+                qusb2snes.setStatusCallback(handleStatusChange);
+                qusb2snes.setMemoryCallback(handleMemoryUpdate);
+                qusb2snes.setSelectedStats(selectedStats);
+                qusb2snes.setHost(host, port);
+                qusb2snes.startMonitoring();
+            }
+        }
+
+        function pauseCounter() {
+            if (isRunning) {
+                isRunning = false;
+                clearInterval(intervalId);
+                
+                playPauseBtn.textContent = '▶';
+                playPauseBtn.className = 'play-pause-btn';
+            }
+        }
+
+        function resumeCounter() {
+            if (!isRunning) {
+                isRunning = true;
+                intervalId = setInterval(updateCounter, 10);
+                
+                playPauseBtn.textContent = '⏸';
+                playPauseBtn.className = 'play-pause-btn paused';
+            }
+        }
+
+        function stopCounter() {
+            isRunning = false;
+            timerControlActive = false;
+            clearInterval(intervalId);
+            
+            if (qusb2snes) {
+                qusb2snes.stopMonitoring();
+                qusb2snes = null;
+            }
+            
+            centiseconds = 0;
+            lastTimerValue = 0;
+            const time = formatTime(centiseconds);
+            timerMain.textContent = time.main;
+            timerCentis.textContent = time.centis;
+            
+            // Reset all boxes
+            selectedStats.forEach(stat => {
+                document.getElementById(stat).textContent = '0';
+            });
+            
+            playPauseBtn.textContent = '▶';
+            playPauseBtn.className = 'play-pause-btn';
+        }
+
+        function resetTimer() {
+            // Stop the timer if running
+            if (isRunning) {
+                isRunning = false;
+                clearInterval(intervalId);
+            }
+            
+            // Reset the timer to zero
+            centiseconds = 0;
+            const time = formatTime(centiseconds);
+            timerMain.textContent = time.main;
+            timerCentis.textContent = time.centis;
+            
+            // Update button states
+            playPauseBtn.textContent = '▶';
+            playPauseBtn.className = 'play-pause-btn';
+        }
+
+        // Automatically connect to WebSocket when page loads
+        window.addEventListener('load', function() {
+            startCounter();
+        });
+    </script>
+</body>
+</html>
