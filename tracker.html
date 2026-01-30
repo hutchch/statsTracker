@@ -58,7 +58,85 @@
         const port = urlParams.get('port') || '23074';
         const columns = urlParams.get('columns') || '4';
         const statsParam = urlParams.get('stats') || '';
+        const separateTimer = urlParams.get('separateTimer') === '1';
         selectedStats = statsParam.split(',').filter(s => s);
+
+        // Hide timer if separate window mode
+        if (separateTimer) {
+            counterDisplay.style.display = 'none';
+            document.querySelector('.controls').style.display = 'none';
+        }
+
+        // Drag and drop functionality
+        let draggedElement = null;
+        let draggedIndex = null;
+
+        function handleDragStart(e) {
+            draggedElement = e.target.closest('.box');
+            draggedIndex = Array.from(boxesContainer.children).indexOf(draggedElement);
+            draggedElement.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', draggedElement.innerHTML);
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleDragEnter(e) {
+            const target = e.target.closest('.box');
+            if (target && target !== draggedElement) {
+                target.style.transform = 'scale(1.05)';
+            }
+        }
+
+        function handleDragLeave(e) {
+            const target = e.target.closest('.box');
+            if (target && target !== draggedElement) {
+                target.style.transform = '';
+            }
+        }
+
+        function handleDrop(e) {
+            if (e.stopPropagation) {
+                e.stopPropagation();
+            }
+
+            const target = e.target.closest('.box');
+            if (target && draggedElement !== target) {
+                const targetIndex = Array.from(boxesContainer.children).indexOf(target);
+                
+                if (draggedIndex < targetIndex) {
+                    target.parentNode.insertBefore(draggedElement, target.nextSibling);
+                } else {
+                    target.parentNode.insertBefore(draggedElement, target);
+                }
+
+                // Update selectedStats array to match new order
+                const [movedStat] = selectedStats.splice(draggedIndex, 1);
+                const newTargetIndex = Array.from(boxesContainer.children).indexOf(draggedElement);
+                selectedStats.splice(newTargetIndex, 0, movedStat);
+            }
+
+            target.style.transform = '';
+            return false;
+        }
+
+        function handleDragEnd(e) {
+            if (draggedElement) {
+                draggedElement.classList.remove('dragging');
+            }
+            
+            // Reset all transforms
+            const boxes = boxesContainer.querySelectorAll('.box');
+            boxes.forEach(box => {
+                box.style.transform = '';
+            });
+        }
 
         // Generate boxes
         function generateBoxes() {
@@ -70,6 +148,15 @@
             selectedStats.forEach(stat => {
                 const box = document.createElement('div');
                 box.className = 'box';
+                box.draggable = true;
+                
+                // Add drag event listeners
+                box.addEventListener('dragstart', handleDragStart);
+                box.addEventListener('dragover', handleDragOver);
+                box.addEventListener('dragenter', handleDragEnter);
+                box.addEventListener('dragleave', handleDragLeave);
+                box.addEventListener('drop', handleDrop);
+                box.addEventListener('dragend', handleDragEnd);
                 
                 const label = document.createElement('div');
                 label.className = 'box-label';
@@ -109,7 +196,7 @@
 
         function handleStatusChange(status) {
             if (status === 'connected') {
-                statusDisplay.textContent = '● Connected to RetroArch';
+                statusDisplay.textContent = '● Connected to WebSocket';
                 statusDisplay.className = 'status connected';
             } else if (status === 'connecting') {
                 statusDisplay.textContent = '● Connecting...';

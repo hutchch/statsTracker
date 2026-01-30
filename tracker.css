@@ -96,7 +96,7 @@ button {
 
 .boxes-container {
     display: grid;
-    gap: clamp(4px, 1.5vw, 8px);
+    gap: 4px;
     margin-top: 10px;
     margin-bottom: 10px;
     flex: 1;
@@ -120,15 +120,23 @@ button {
 
 .box {
     background-color: #2a2a2a;
-    border-radius: clamp(4px, 1vw, 6px);
-    padding: clamp(6px, 2vw, 10px);
+    border-radius: 4px;
+    padding: 8px;
     text-align: center;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.6);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.6);
     transition: transform 0.2s;
-    min-height: 40px;
+    width: 70px;
+    height: 70px;
     display: flex;
     flex-direction: column;
     justify-content: center;
+    cursor: move;
+    position: relative;
+}
+
+.box.dragging {
+    opacity: 0.5;
+    z-index: 1000;
 }
 
 .box:hover {
@@ -137,32 +145,53 @@ button {
 }
 
 .box-label {
-    font-size: clamp(10px, 2.5vw, 12px);
+    font-size: 11px;
     font-weight: bold;
-    margin-bottom: clamp(3px, 1vw, 5px);
+    margin-bottom: 3px;
     color: #cccccc;
 }
 
 .box-value {
-    font-size: clamp(18px, 4.5vw, 24px);
+    font-size: 20px;
     font-weight: bold;
-    color: #3498db;
+    color: #ffffff;
 }
 
 .box:nth-child(4n+1) .box-value {
-    color: #27ae60;
+    color: #ffffff;
 }
 
 .box:nth-child(4n+2) .box-value {
-    color: #e67e22;
+    color: #ffffff;
 }
 
 .box:nth-child(4n+3) .box-value {
-    color: #9b59b6;
+    color: #ffffff;
 }
 
 .box:nth-child(4n+4) .box-value {
-    color: #e74c3c;
+    color: #ffffff;
+}
+
+/* Specific colors for checks and deaths */
+#checks {
+    color: #27ae60 !important;
+}
+
+#deaths {
+    color: #e74c3c !important;
+}
+
+#flutes {
+    color: #3498db !important;
+}
+
+#revivals {
+    color: #9b59b6 !important;
+}
+
+#bonks {
+    color: #e67e22 !important;
 }
 
 button:disabled {

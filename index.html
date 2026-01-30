@@ -163,6 +163,11 @@
                 <option value="4" selected>4 Columns</option>
             </select>
         </div>
+        <div class="checkbox-item" style="margin-top: 15px;">
+            <input type="checkbox" id="separateTimer" onchange="toggleTimerButton()">
+            <label for="separateTimer">Open timer in separate window</label>
+        </div>
+        <button id="openTimerBtn" class="launch-button" onclick="openTimerWindow()" style="display: none; margin-top: 10px; background-color: #3498db;">Open Timer Window</button>
     </div>
 
     <div class="section">
@@ -189,19 +194,19 @@
                 <label for="deaths">Deaths</label>
             </div>
             <div class="checkbox-item">
-                <input type="checkbox" id="flutes">
+                <input type="checkbox" id="flutes" checked>
                 <label for="flutes">Flutes</label>
             </div>
             <div class="checkbox-item">
-                <input type="checkbox" id="saveandquit">
+                <input type="checkbox" id="saveandquit" checked>
                 <label for="saveandquit">Save and Quit</label>
             </div>
             <div class="checkbox-item">
-                <input type="checkbox" id="dungeonmirrors">
+                <input type="checkbox" id="dungeonmirrors" checked>
                 <label for="dungeonmirrors">Dungeon Mirrors</label>
             </div>
             <div class="checkbox-item">
-                <input type="checkbox" id="overworldmirrors">
+                <input type="checkbox" id="overworldmirrors" checked>
                 <label for="overworldmirrors">Overworld Mirrors</label>
             </div>
         </div>
@@ -220,11 +225,38 @@
             checkboxes.forEach(cb => cb.checked = false);
         }
 
+        function toggleTimerButton() {
+            const separateTimer = document.getElementById('separateTimer').checked;
+            const timerBtn = document.getElementById('openTimerBtn');
+            timerBtn.style.display = separateTimer ? 'block' : 'none';
+        }
+
+        function openTimerWindow() {
+            const host = document.getElementById('wsHost').value || 'localhost';
+            const port = document.getElementById('wsPort').value || '23074';
+
+            const timerParams = new URLSearchParams();
+            timerParams.set('host', host);
+            timerParams.set('port', port);
+
+            const timerWidth = 350;
+            const timerHeight = 300;
+            const timerLeft = (screen.width - timerWidth) / 2;
+            const timerTop = (screen.height - timerHeight) / 2;
+
+            window.open(
+                'timer.html?' + timerParams.toString(),
+                'Timer',
+                `width=${timerWidth},height=${timerHeight},left=${timerLeft},top=${timerTop}`
+            );
+        }
+
         function launchTracker() {
             // Get WebSocket settings
             const host = document.getElementById('wsHost').value || 'localhost';
             const port = document.getElementById('wsPort').value || '23074';
             const columns = document.getElementById('columns').value || '4';
+            const separateTimer = document.getElementById('separateTimer').checked;
 
             // Get selected stats
             const selectedStats = [];
@@ -247,6 +279,7 @@
             params.set('port', port);
             params.set('columns', columns);
             params.set('stats', selectedStats.join(','));
+            params.set('separateTimer', separateTimer ? '1' : '0');
 
             // Open tracker window
             const width = 400;
@@ -259,6 +292,11 @@
                 'StatsTracker',
                 `width=${width},height=${height},left=${left},top=${top}`
             );
+
+            // Open separate timer window if option is checked
+            if (separateTimer) {
+                openTimerWindow();
+            }
         }
     </script>
 </body>
